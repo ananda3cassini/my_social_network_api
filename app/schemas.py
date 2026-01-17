@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field
-
+from pydantic import BaseModel, Field, field_validator
+from typing import Literal
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -24,3 +25,59 @@ class Token(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+# Ajout des schémas
+GroupType = Literal["public", "private", "secret"]
+
+
+class GroupCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=2000)
+    icon_url: str | None = None
+    cover_url: str | None = None
+    group_type: GroupType = "public"
+    allow_member_posts: bool = True
+    allow_member_events: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("name cannot be empty")
+        return v
+
+
+class GroupUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=2000)
+    icon_url: str | None = None
+    cover_url: str | None = None
+    group_type: GroupType | None = None
+    allow_member_posts: bool | None = None
+    allow_member_events: bool | None = None
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip()
+        if not v:
+            raise ValueError("name cannot be empty")
+        return v
+
+
+class GroupPublic(BaseModel):
+    id: int
+    name: str
+    description: str | None
+    icon_url: str | None
+    cover_url: str | None
+    group_type: str
+    allow_member_posts: bool
+    allow_member_events: bool
+
+    class Config:
+        from_attributes = True
