@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from app.db import Base, engine
+from app import models  #charge les modèles SQLAlchemy
 from app.auth_routes import router as auth_router
 
 app = FastAPI(title="My Social Networks API")
 
-# Crée les tables au démarrage 
 Base.metadata.create_all(bind=engine)
 
 app.include_router(auth_router)

@@ -11,7 +11,7 @@ from jose import JWTError
 from .db import get_db
 from .models import User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # Pour le TP
 SECRET_KEY = "CHANGE_ME_SUPER_SECRET"
