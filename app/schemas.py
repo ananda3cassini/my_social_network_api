@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator, HttpUrl
 from typing import Literal
 from datetime import datetime
 
@@ -112,6 +112,131 @@ class EventPublic(BaseModel):
     cover_url: str | None
     is_public: bool
     group_id: int | None
+
+    class Config:
+        from_attributes = True
+
+
+# Schema Discussions
+class DiscussionCreate(BaseModel):
+    group_id: int | None = None
+    event_id: int | None = None
+
+    @model_validator(mode="after")
+    def check_exactly_one_parent(self):
+        # interdit: aucun lien
+        if self.group_id is None and self.event_id is None:
+            raise ValueError("A discussion must be linked to a group or an event")
+        # interdit: les deux
+        if self.group_id is not None and self.event_id is not None:
+            raise ValueError("A discussion cannot be linked to both a group and an event")
+        return self
+
+
+class DiscussionPublic(BaseModel):
+    id: int
+    group_id: int | None
+    event_id: int | None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+#Schema Message
+class MessageCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=2000)
+
+    @model_validator(mode="after")
+    def strip_and_validate(self):
+        # évite les messages "   "
+        cleaned = self.content.strip()
+        if not cleaned:
+            raise ValueError("content must not be empty")
+        self.content = cleaned
+        return self
+
+
+class MessagePublic(BaseModel):
+    id: int
+    discussion_id: int
+    author_id: int
+    content: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Schema album
+class AlbumCreate(BaseModel):
+    event_id: int
+    title: str = Field(min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def strip_title(self):
+        self.title = self.title.strip()
+        if not self.title:
+            raise ValueError("title must not be empty")
+        return self
+
+
+class AlbumPublic(BaseModel):
+    id: int
+    event_id: int
+    title: str
+    description: str | None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Schema photos
+class PhotoCreate(BaseModel):
+    url: HttpUrl
+    caption: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def clean_caption(self):
+        if self.caption is not None:
+            self.caption = self.caption.strip()
+            if self.caption == "":
+                self.caption = None
+        return self
+
+
+class PhotoPublic(BaseModel):
+    id: int
+    album_id: int
+    uploader_id: int
+    url: str
+    caption: str | None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Schema commentaires
+class PhotoCommentCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=2000)
+
+    @model_validator(mode="after")
+    def clean_content(self):
+        self.content = self.content.strip()
+        if not self.content:
+            raise ValueError("content must not be empty")
+        return self
+
+
+class PhotoCommentPublic(BaseModel):
+    id: int
+    photo_id: int
+    author_id: int
+    content: str
+    created_at: datetime
 
     class Config:
         from_attributes = True

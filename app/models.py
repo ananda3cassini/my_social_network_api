@@ -2,6 +2,8 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, T
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .db import Base
+from datetime import datetime
+
 
 
 # User
@@ -85,3 +87,81 @@ class Event(Base):
 
     organizers = relationship("User", secondary=event_organizers, backref="organized_events")
     participants = relationship("User", secondary=event_participants, backref="participating_events")
+
+
+# Discussion
+class Discussion(Base):
+    __tablename__ = "discussions"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # lien exclusif : groupe OU event
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    messages = relationship("Message", back_populates="discussion", cascade="all, delete-orphan")
+
+
+# Message
+class Message(Base):
+    __tablename__ = "messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    discussion_id = Column(Integer, ForeignKey("discussions.id"), nullable=False)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    discussion = relationship("Discussion", back_populates="messages")
+    author = relationship("User")
+
+
+# Album
+class PhotoAlbum(Base):
+    __tablename__ = "photo_albums"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    event = relationship("Event")
+    photos = relationship("Photo", back_populates="album", cascade="all, delete-orphan")
+
+
+# Photo
+class Photo(Base):
+    __tablename__ = "photos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    album_id = Column(Integer, ForeignKey("photo_albums.id"), nullable=False)
+    uploader_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    url = Column(String(500), nullable=False)
+    caption = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    album = relationship("PhotoAlbum", back_populates="photos")
+    uploader = relationship("User")
+    comments = relationship("PhotoComment", back_populates="photo", cascade="all, delete-orphan")
+
+
+# Commentaire photo
+class PhotoComment(Base):
+    __tablename__ = "photo_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    photo_id = Column(Integer, ForeignKey("photos.id"), nullable=False)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    photo = relationship("Photo", back_populates="comments")
+    author = relationship("User")

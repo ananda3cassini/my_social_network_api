@@ -4,7 +4,7 @@ from app import models  #charge les modèles SQLAlchemy
 from app.auth_routes import router as auth_router
 from app.group_routes import router as group_router
 from app.event_routes import router as event_router
-
+from app.discussion_routes import router as discussion_router
 
 
 app = FastAPI(title="My Social Networks API")
@@ -24,3 +24,9 @@ def health():
 app.include_router(group_router)
 
 app.include_router(event_router)
+
+from app.discussion_routes import router as discussion_router
+app.include_router(discussion_router)
+
+from app.album_routes import router as album_router
+app.include_router(album_router)
