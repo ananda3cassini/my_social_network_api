@@ -33,6 +33,7 @@ def create_event(
         cover_url=payload.cover_url,
         is_public=payload.is_public,
         group_id=payload.group_id,
+        shopping_list_enabled=payload.shopping_list_enabled,
     )
 
     db.add(event)

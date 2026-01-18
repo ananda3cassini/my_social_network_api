@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Table, Text
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Table, Text, UniqueConstraint, Float 
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .db import Base
@@ -82,11 +82,14 @@ class Event(Base):
     cover_url = Column(String(500), nullable=True)
     is_public = Column(Boolean, nullable=False, default=True)
 
-    # optionnel pour rattacher un event à un groupe
     group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
 
     organizers = relationship("User", secondary=event_organizers, backref="organized_events")
     participants = relationship("User", secondary=event_participants, backref="participating_events")
+
+    shopping_list_enabled = Column(Boolean, nullable=False, default=False)
+    carpool_enabled = Column(Boolean, nullable=False, default=False)  # pour plus tard
+
 
 
 # Discussion
@@ -165,3 +168,127 @@ class PhotoComment(Base):
 
     photo = relationship("Photo", back_populates="comments")
     author = relationship("User")
+
+
+# Sondage
+class Poll(Base):
+    __tablename__ = "polls"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    title = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    event = relationship("Event")
+    creator = relationship("User")
+    questions = relationship("PollQuestion", back_populates="poll", cascade="all, delete-orphan")
+
+# Question de sondage
+class PollQuestion(Base):
+    __tablename__ = "poll_questions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    poll_id = Column(Integer, ForeignKey("polls.id"), nullable=False)
+
+    question = Column(Text, nullable=False)
+
+    poll = relationship("Poll", back_populates="questions")
+    options = relationship("PollOption", back_populates="question", cascade="all, delete-orphan")
+
+
+# Réponses possibles 
+class PollOption(Base):
+    __tablename__ = "poll_options"
+
+    id = Column(Integer, primary_key=True, index=True)
+    question_id = Column(Integer, ForeignKey("poll_questions.id"), nullable=False)
+
+    label = Column(String(255), nullable=False)
+
+    question = relationship("PollQuestion", back_populates="options")
+
+
+# Vote d'un participant
+class PollVote(Base):
+    __tablename__ = "poll_votes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    question_id = Column(Integer, ForeignKey("poll_questions.id"), nullable=False)
+    option_id = Column(Integer, ForeignKey("poll_options.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        # 1 vote max par question et par utilisateur
+        UniqueConstraint("question_id", "user_id", name="uq_vote_question_user"),
+    )
+
+    question = relationship("PollQuestion")
+    option = relationship("PollOption")
+    user = relationship("User")
+
+
+# Billetterie
+class TicketType(Base):
+    __tablename__ = "ticket_types"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+
+    name = Column(String(100), nullable=False)
+    amount = Column(Float, nullable=False, default=0.0)  # prix
+    quantity_limit = Column(Integer, nullable=False)     # stock dispo
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    event = relationship("Event", backref="ticket_types")
+
+
+class TicketPurchase(Base):
+    __tablename__ = "ticket_purchases"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    ticket_type_id = Column(Integer, ForeignKey("ticket_types.id"), nullable=False)
+
+    email = Column(String(255), nullable=False)
+    first_name = Column(String(100), nullable=False)
+    last_name = Column(String(100), nullable=False)
+    address = Column(Text, nullable=False)
+
+    purchased_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("event_id", "email", name="uq_ticket_purchase_event_email"),
+    )
+
+    event = relationship("Event", backref="ticket_purchases")
+    ticket_type = relationship("TicketType", backref="purchases")
+
+# Shopping item
+from sqlalchemy import UniqueConstraint
+from datetime import datetime
+
+class ShoppingItem(Base):
+    __tablename__ = "shopping_items"
+    __table_args__ = (
+        UniqueConstraint("event_id", "name", name="uq_shopping_item_event_name"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    name = Column(String(100), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    arrival_time = Column(DateTime, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    event = relationship("Event", backref="shopping_items")
+    user = relationship("User", backref="shopping_items")
