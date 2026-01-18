@@ -1,9 +1,6 @@
-from sqlalchemy import (
-    Column, Integer, String, DateTime, Boolean, ForeignKey, Table, Text
-)
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Table, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-
 from .db import Base
 
 
@@ -33,6 +30,19 @@ group_admins = Table(
     Column("user_id", ForeignKey("users.id"), primary_key=True),
 )
 
+event_participants = Table(
+    "event_participants",
+    Base.metadata,
+    Column("event_id", ForeignKey("events.id"), primary_key=True),
+    Column("user_id", ForeignKey("users.id"), primary_key=True),
+)
+
+event_organizers = Table(
+    "event_organizers",
+    Base.metadata,
+    Column("event_id", ForeignKey("events.id"), primary_key=True),
+    Column("user_id", ForeignKey("users.id"), primary_key=True),
+)
 
 # Group
 class Group(Base):
@@ -55,3 +65,23 @@ class Group(Base):
 
     members = relationship("User", secondary=group_members, backref="member_groups")
     admins = relationship("User", secondary=group_admins, backref="admin_groups")
+
+# Event
+class Event(Base):
+    __tablename__ = "events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime, nullable=False)
+    location = Column(String(255), nullable=False)
+    cover_url = Column(String(500), nullable=True)
+    is_public = Column(Boolean, nullable=False, default=True)
+
+    # optionnel pour rattacher un event à un groupe
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
+
+    organizers = relationship("User", secondary=event_organizers, backref="organized_events")
+    participants = relationship("User", secondary=event_participants, backref="participating_events")

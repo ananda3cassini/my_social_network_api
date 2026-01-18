@@ -1,6 +1,6 @@
-from pydantic import BaseModel, EmailStr, Field
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from typing import Literal
+from datetime import datetime
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -78,6 +78,40 @@ class GroupPublic(BaseModel):
     group_type: str
     allow_member_posts: bool
     allow_member_events: bool
+
+    class Config:
+        from_attributes = True
+
+
+class EventCreate(BaseModel):
+    name: str = Field(..., min_length=3)
+    description: str | None = None
+
+    start_date: datetime
+    end_date: datetime
+
+    location: str
+    cover_url: str | None = None
+
+    is_public: bool = True
+    group_id: int | None = None
+
+    @model_validator(mode="after")
+    def check_dates(self):
+        if self.start_date >= self.end_date:
+            raise ValueError("start_date must be before end_date")
+        return self
+
+class EventPublic(BaseModel):
+    id: int
+    name: str
+    description: str | None
+    start_date: datetime
+    end_date: datetime
+    location: str
+    cover_url: str | None
+    is_public: bool
+    group_id: int | None
 
     class Config:
         from_attributes = True
