@@ -234,5 +234,3 @@ Dans le cas contraire, la requête est rejetée par validation.
 La base utilisée est SQLite (fichier `app.db`) et l'initialisation est effectuée via `Base.metadata.create_all()`.
 
 Cette méthode crée les tables si elles n'existent pas mais ne met pas à jour une table existante en cas de modification du modèle. Ainsi, lors d'une évolution du schéma (par exemple ajout de `parent_message_id` pour les threads), il est nécessaire, dans le contexte du TP, de recréer la base en supprimant `app.db` puis en relançant l'application.
-
----
