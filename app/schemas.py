@@ -149,10 +149,10 @@ class DiscussionPublic(BaseModel):
 #Schema Message
 class MessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
+    parent_message_id: int | None = None 
 
     @model_validator(mode="after")
     def strip_and_validate(self):
-        # évite les messages "   "
         cleaned = self.content.strip()
         if not cleaned:
             raise ValueError("content must not be empty")
@@ -164,11 +164,13 @@ class MessagePublic(BaseModel):
     id: int
     discussion_id: int
     author_id: int
+    parent_message_id: int | None 
     content: str
     created_at: datetime
 
     class Config:
         from_attributes = True
+
 
 
 # Schema album

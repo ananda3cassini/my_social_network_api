@@ -113,3 +113,99 @@ def list_items(
             "created_by": {"id": u.id, "email": u.email, "full_name": u.full_name} if u else None,
         })
     return result
+
+
+# update item
+@router.patch("/{item_id}", response_model=ShoppingItemPublic)
+def update_item(
+    event_id: int,
+    item_id: int,
+    payload: ShoppingItemUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    event = db.execute(select(Event).where(Event.id == event_id)).scalar_one_or_none()
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    if not event.shopping_list_enabled:
+        raise HTTPException(status_code=400, detail="Shopping list is not enabled for this event")
+
+    item = db.execute(
+        select(ShoppingItem).where(
+            ShoppingItem.id == item_id,
+            ShoppingItem.event_id == event_id,
+        )
+    ).scalar_one_or_none()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Shopping item not found")
+
+    # droits : créateur OU organizer
+    is_organizer = db.execute(
+        select(event_organizers.c.user_id).where(
+            event_organizers.c.event_id == event_id,
+            event_organizers.c.user_id == current_user.id,
+        )
+    ).first() is not None
+
+    if item.user_id != current_user.id and not is_organizer:
+        raise HTTPException(status_code=403, detail="Not allowed to update this item")
+
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(item, k, v)
+
+    db.commit()
+    db.refresh(item)
+
+    return {
+        "id": item.id,
+        "event_id": item.event_id,
+        "name": item.name,
+        "quantity": item.quantity,
+        "arrival_time": item.arrival_time,
+        "created_at": item.created_at,
+        "created_by": {
+            "id": current_user.id,
+            "email": current_user.email,
+            "full_name": current_user.full_name,
+        },
+    }
+
+
+# delete item
+@router.delete("/{item_id}", status_code=204)
+def delete_item(
+    event_id: int,
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    event = db.execute(select(Event).where(Event.id == event_id)).scalar_one_or_none()
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    if not event.shopping_list_enabled:
+        raise HTTPException(status_code=400, detail="Shopping list is not enabled for this event")
+
+    item = db.execute(
+        select(ShoppingItem).where(
+            ShoppingItem.id == item_id,
+            ShoppingItem.event_id == event_id,
+        )
+    ).scalar_one_or_none()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Shopping item not found")
+
+    is_organizer = db.execute(
+        select(event_organizers.c.user_id).where(
+            event_organizers.c.event_id == event_id,
+            event_organizers.c.user_id == current_user.id,
+        )
+    ).first() is not None
+
+    if item.user_id != current_user.id and not is_organizer:
+        raise HTTPException(status_code=403, detail="Not allowed to delete this item")
+
+    db.delete(item)
+    db.commit()
+    return

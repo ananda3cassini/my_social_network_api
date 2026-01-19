@@ -137,22 +137,42 @@ def post_message(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    discussion = db.execute(select(Discussion).where(Discussion.id == discussion_id)).scalar_one_or_none()
+    discussion = db.execute(
+        select(Discussion).where(Discussion.id == discussion_id)
+    ).scalar_one_or_none()
     if discussion is None:
         raise HTTPException(status_code=404, detail="Discussion not found")
 
     if not _can_access_discussion(db, discussion, current_user):
         raise HTTPException(status_code=403, detail="Not allowed to post in this discussion")
 
+    parent_id = payload.parent_message_id
+
+    # Si c'est une réponse, vérifier que le parent existe et appartient à la même discussion
+    if parent_id is not None:
+        parent_msg = db.execute(
+            select(Message).where(Message.id == parent_id)
+        ).scalar_one_or_none()
+        if parent_msg is None:
+            raise HTTPException(status_code=404, detail="Parent message not found")
+
+        if parent_msg.discussion_id != discussion_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Parent message must belong to the same discussion",
+            )
+
     msg = Message(
         discussion_id=discussion_id,
         author_id=current_user.id,
         content=payload.content,
+        parent_message_id=parent_id,  # NEW
     )
     db.add(msg)
     db.commit()
     db.refresh(msg)
     return msg
+
 
 
 @router.get("/{discussion_id}/messages", response_model=list[MessagePublic])
@@ -319,3 +339,39 @@ def delete_message(
             return
 
     raise HTTPException(status_code=403, detail="Not allowed to delete this message")
+
+
+# lister les replies
+@router.get("/{discussion_id}/messages/{message_id}/replies", response_model=list[MessagePublic])
+def list_replies(
+    discussion_id: int,
+    message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    discussion = db.execute(select(Discussion).where(Discussion.id == discussion_id)).scalar_one_or_none()
+    if discussion is None:
+        raise HTTPException(status_code=404, detail="Discussion not found")
+
+    if not _can_access_discussion(db, discussion, current_user):
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    parent = db.execute(
+        select(Message).where(
+            Message.id == message_id,
+            Message.discussion_id == discussion_id,
+        )
+    ).scalar_one_or_none()
+    if parent is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    replies = db.execute(
+        select(Message)
+        .where(
+            Message.discussion_id == discussion_id,
+            Message.parent_message_id == message_id,
+        )
+        .order_by(Message.created_at.asc())
+    ).scalars().all()
+
+    return replies

@@ -116,11 +116,18 @@ class Message(Base):
     discussion_id = Column(Integer, ForeignKey("discussions.id"), nullable=False)
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
+    # thread / reply
+    parent_message_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
+
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     discussion = relationship("Discussion", back_populates="messages")
     author = relationship("User")
+
+    # self-referential relationships
+    parent = relationship("Message", remote_side=[id], backref="replies")
+
 
 
 # Album

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, or_
 
 from .db import get_db
-from .models import Event, Group, User, event_participants, event_organizers, group_members
+from .models import Event, Group, User, event_participants, event_organizers, group_members, group_admins
 from .schemas import EventCreate, EventPublic
 from .security import get_current_user, get_current_user_optional
 
@@ -22,7 +22,27 @@ def create_event(
         if group is None:
             raise HTTPException(status_code=404, detail="Group not found")
 
-        # Optionnel (si ya déjà une table group_members): vérifier que current_user est membre/admin
+    # doit être membre du groupe
+        is_member = db.execute(
+            select(group_members.c.user_id).where(
+                group_members.c.group_id == payload.group_id,
+                group_members.c.user_id == current_user.id,
+            )
+        ).first() is not None
+        if not is_member:
+            raise HTTPException(status_code=403, detail="Only group members can create events for this group")
+
+    # si les membres ne peuvent pas créer d'event => admin only
+        if not group.allow_member_events:
+            is_admin = db.execute(
+                select(group_admins.c.user_id).where(
+                    group_admins.c.group_id == payload.group_id,
+                    group_admins.c.user_id == current_user.id,
+                )
+            ).first() is not None
+            if not is_admin:
+                raise HTTPException(status_code=403, detail="Only group admins can create events for this group")
+
 
     event = Event(
         name=payload.name,
@@ -49,15 +69,6 @@ def create_event(
     db.refresh(event)
     return event
 
-
-@router.get("/{event_id}", response_model=EventPublic)
-def get_event(event_id: int, db: Session = Depends(get_db)):
-    event = db.execute(select(Event).where(Event.id == event_id)).scalar_one_or_none()
-    if event is None:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    # Optionnel : si event privé, vérifier droits
-    return event
 
 
 @router.post("/{event_id}/join", status_code=204)
@@ -354,3 +365,51 @@ def list_events(
 
     events = db.execute(query).scalars().all()
     return events
+
+
+@router.post("/{event_id}/invite-group-members", status_code=204)
+def invite_group_members(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    event = db.execute(select(Event).where(Event.id == event_id)).scalar_one_or_none()
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    if event.group_id is None:
+        raise HTTPException(status_code=400, detail="This event is not linked to a group")
+
+    # autorisation: organizer de l'event (simple)
+    is_org = db.execute(
+        select(event_organizers.c.user_id).where(
+            event_organizers.c.event_id == event_id,
+            event_organizers.c.user_id == current_user.id,
+        )
+    ).first() is not None
+    if not is_org:
+        raise HTTPException(status_code=403, detail="Only organizers can invite group members")
+
+    # récupérer tous les membres du groupe
+    member_ids = db.execute(
+        select(group_members.c.user_id).where(group_members.c.group_id == event.group_id)
+    ).scalars().all()
+
+    if not member_ids:
+        return
+
+    # récupérer les participants déjà inscrits
+    existing_ids = set(db.execute(
+        select(event_participants.c.user_id).where(event_participants.c.event_id == event_id)
+    ).scalars().all())
+
+    to_add = [uid for uid in member_ids if uid not in existing_ids]
+    if not to_add:
+        return
+
+    db.execute(
+        event_participants.insert(),
+        [{"event_id": event_id, "user_id": uid} for uid in to_add]
+    )
+    db.commit()
+    return
