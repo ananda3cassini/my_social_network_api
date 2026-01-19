@@ -31,6 +31,7 @@ source .venv/bin/activate   # macOS / Linux
 
 pip install -r requirements.txt
 ```
+Le fichier requirements.txt a été généré via pip freeze afin de garantir la reproductibilité exacte de l’environnement d’exécution.
 ### 3.2. Lancement de l'API
 ```bash
 uvicorn app.main:app --reload
