@@ -34,7 +34,7 @@ pip install -r requirements.txt
 Le fichier requirements.txt a été généré via pip freeze afin de garantir la reproductibilité exacte de l’environnement d’exécution.
 ### 3.2. Lancement de l'API
 ```bash
-uvicorn app.main:app --reload
+uvicorn main:app --reload
 ```
 
 * API : http://127.0.0.1:8000
